@@ -18,13 +18,12 @@
 #include <stdlib.h>
 #include <ifaddrs.h>
 
-#define MESSAGE "hi there"
 
 struct dhcpv6_relay_packet {
     unsigned char msg_type;
     unsigned char hop_count;
     unsigned char link_address[16];
-    unsigned char peer_address[16];
+    char peer_address[16];
     unsigned char options[];
 };
 
@@ -32,7 +31,7 @@ struct dhcpv6_relay_packet {
 int main(int argc, const char * argv[]) {
 
     struct dhcpv6_relay_packet *packet = malloc(sizeof(*packet));
-    struct sockaddr_in6 server;
+    struct sockaddr_in6 server, client;
     memset(&server, 0, sizeof(server));
     server.sin6_family = AF_INET6;
     inet_pton(AF_INET6, "2001:67c:1220:80c::93e5:dd2", &server.sin6_addr);
@@ -40,23 +39,44 @@ int main(int argc, const char * argv[]) {
 
     packet->msg_type = 1;
     packet->hop_count = 1;
+    //memcpy(packet->peer_address, "fe80::5cea:36ff:fe26:585f", sizeof(packet->peer_address));
     strcpy(packet->peer_address, "fe80::5cea:36ff:fe26:585f");
-    strcpy(packet->link_address, "0");
+    memcpy(packet->link_address, "0", sizeof(packet->link_address));
 
-
+    char reply[1024];
     int sockfd;
+    socklen_t client_length= sizeof(client);
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 0;
+
     if ((sockfd = socket(PF_INET6, SOCK_DGRAM, 0)) < 0) {
         fprintf(stderr, "Error opening a socket on local machine\n");
     }
-    else {
-        printf("Socket opened successfully\n");
+
+    if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO,(struct timeval *)&tv,sizeof(struct timeval))) {
+        perror("This is your error: ");
+        exit(-1);
     }
 
-    if (sendto(sockfd, MESSAGE, sizeof(MESSAGE), 0, (struct sockaddr *)&server,
+    if (sendto(sockfd, packet, sizeof(packet), 0, (struct sockaddr *)&server,
                sizeof(server)) < 0) {
         perror("This is your error: ");
     }
-    //sendto(sockfd, *buffer, <#size_t#>, <#int#>, <#const struct sockaddr *#>, <#socklen_t#>);
+
+
+    if ((recvfrom(sockfd, reply, sizeof(reply), 0, (struct sockaddr *)&client, &client_length) ) < 0) {
+      perror("This is your error: ")  ;
+    }
+
+    printf("Message: %s \n", reply);
+
+    close(sockfd);
+
+    return 0;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 
 /*
     struct ifaddrs *ifa, *ifa_tmp;
@@ -86,28 +106,3 @@ int main(int argc, const char * argv[]) {
         ifa_tmp = ifa_tmp->ifa_next;
     }
  */
-    return 0;
-}
-
-
-
-
-/* typedef struct {
-     int MSG_TYPE : 8;
-     int C: 1;
-     int reserved : 16;
-     int prefix: 7;
-     __int128_t client_address : 128;
-     __int128_t relay_address : 128;
-
- } message_buffer;
-
- message_buffer *buffer = malloc(sizeof(message_buffer));
-
- buffer->MSG_TYPE = 1;
- buffer->C = 0;
- buffer->reserved = 0;
- buffer->prefix = 64;
- buffer->client_address = (int)strtol("fe80::5cea:36ff:fe26:585f", NULL, 0);
- buffer->relay_address = (int)strtol("fe80::1c08:ffc9:9a58:c7bf", NULL, 0);
-*/
