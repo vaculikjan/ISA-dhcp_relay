@@ -1,4 +1,4 @@
-# ISA d6r README
+# ISA d6r project
 
 ## Description
 
